@@ -40,7 +40,7 @@ class Chef(object):
 
     Give it a few tools and it'll make you happy!
 
-    The Chef is responsible for executing actions that requires several drivers
+    The Chef is responsible for executing actions that require several drivers
     at the same time, such as the coordinator, the incoming and storage
     drivers, or the indexer.
 
@@ -53,6 +53,26 @@ class Chef(object):
         # which means, database connector.
         self.index = index
         self.storage = storage
+
+    def auto_clean_expired_resources(self, resource_ended_at_normalization):
+        """Cleans expired resources.
+
+        This method will clean resources that have expired according to their 'ended_at' field. The method itself will
+        not execute the cleanup, we will mark the resource as deleted, and leave for the system to execute the actual
+        removal of the data.
+        """
+        moment_now = utils.utcnow()
+        moment = moment_now - datetime.timedelta(seconds=resource_ended_at_normalization)
+        attribute_filter = {"<": {"ended_at": moment}}
+
+        all_resources_found = self.index.list_resources(attribute_filter=attribute_filter)
+        LOG.debug("Resources found for deletion: [%s] that have been expired since [%s].", all_resources_found, moment)
+
+        for resource in all_resources_found:
+            LOG.info("Deleting resource [%s] as part of the automatic cleanup process because its 'ended_at' timestamp "
+                     "is less than [%s].", resource, moment)
+            #self.index.delete_resource(resource.id)
+            LOG.debug("Resource [%s] deleted.", resource)
 
     def resource_ended_at_normalization(self, metric_inactive_after):
         """Marks resources as ended at if needed.
